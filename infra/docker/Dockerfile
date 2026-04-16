@@ -4,7 +4,7 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy lockfile + manifest first for layer caching
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
 # Install only production deps into a virtualenv
 RUN uv sync --locked --no-dev --no-install-project
@@ -44,4 +44,4 @@ USER app
 EXPOSE 8000
 
 CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000", \
-     "--workers", "1", "--log-config", "/dev/null"]
+     "--workers", "1", "--no-access-log"]
