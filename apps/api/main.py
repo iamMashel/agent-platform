@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from apps.api.agent import router as agent_router
 from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, generate_latest
 
 app = FastAPI(title="Agent Platform")
+app.include_router(agent_router)
 request_count = Counter("http_requests_total", "Total HTTP requests")
 
 
