@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # LLM
     google_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
     # Langfuse observability
     langfuse_public_key: str | None = None
