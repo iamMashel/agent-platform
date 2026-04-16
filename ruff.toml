@@ -1,0 +1,8 @@
+[lint]
+# Ignore files that aren't Python
+exclude = [
+    ".github",
+    "*.toml",
+    "*.yaml",
+    "*.yml",
+]
