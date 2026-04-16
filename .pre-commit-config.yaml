@@ -1,13 +1,23 @@
 repos:
   - repo: local
     hooks:
-      - id: ruff
-        name: ruff
-        entry: uv run ruff check .
+      - id: ruff-check
+        name: ruff (lint)
+        entry: uv run ruff check
         language: system
-        exclude: \.github/.*|\.toml$|\.yaml$|\.yml$|__pycache__|\.pyc$
+        types: [python]
+        exclude: ^(\.venv|apps/web)/
+
+      - id: ruff-format
+        name: ruff (format)
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
+        exclude: ^(\.venv|apps/web)/
+
       - id: pyright
-        name: pyright
+        name: pyright (type check)
         entry: uv run pyright
         language: system
-        exclude: \.github/.*|\.toml$|\.yaml$|\.yml$|__pycache__|\.pyc$
+        pass_filenames: false
+        exclude: ^(\.venv|apps/web)/
