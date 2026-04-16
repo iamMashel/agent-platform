@@ -1,8 +1,8 @@
 # Agent Platform
 
-![CI](https://img.shields.io/github/actions/workflow/status/mashelodera/agent-platform/ci.yml?label=CI)
+![CI](https://img.shields.io/github/actions/workflow/status/iamMashel/agent-platform/ci.yml?label=CI)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![License](https://img.shields.io/github/license/mashelodera/agent-platform)
+![License](https://img.shields.io/github/license/iamMashel/agent-platform)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![Observability](https://img.shields.io/badge/observability-prometheus-orange)
 ![Tracing](https://img.shields.io/badge/tracing-langfuse-purple)
@@ -69,7 +69,7 @@ Browser / Client
 
 ```bash
 # 1. Clone and enter
-git clone https://github.com/mashelodera/agent-platform.git
+git clone https://github.com/iamMashel/agent-platform.git
 cd agent-platform
 
 # 2. Install uv (if not already installed)
@@ -105,7 +105,7 @@ docker compose up --build -d
 | API        | http://localhost:8000        |
 | API Docs   | http://localhost:8000/docs   |
 | Frontend   | http://localhost:3002        |
-| Langfuse   | http://localhost:3000        |
+| Langfuse   | http://localhost:3010        |
 | Grafana    | http://localhost:3001        |
 | Prometheus | http://localhost:9090        |
 
@@ -202,10 +202,10 @@ just ci            # full local CI gate
 | Variable              | Required | Description                              |
 |-----------------------|----------|------------------------------------------|
 | `GOOGLE_API_KEY`      | Yes      | Google AI Studio API key                 |
-| `GEMINI_MODEL`        | No       | Gemini model name (default: gemini-2.0-flash) |
+| `GEMINI_MODEL`        | No       | Gemini model name (default: gemini-2.5-flash) |
 | `LANGFUSE_PUBLIC_KEY` | No       | Langfuse public key for LLM tracing      |
 | `LANGFUSE_SECRET_KEY` | No       | Langfuse secret key                      |
-| `LANGFUSE_HOST`       | No       | Langfuse host (default: localhost:3000)  |
+| `LANGFUSE_HOST`       | No       | Langfuse host (default: localhost:3010 in Docker)  |
 | `ENVIRONMENT`         | No       | `development` or `production`            |
 
 Copy `.env.example` → `.env` and fill in values.
@@ -230,7 +230,7 @@ Dashboards are auto-provisioned. Open http://localhost:3001 (admin / admin).
 
 ### Langfuse
 
-Full LLM traces with per-request handlers. Open http://localhost:3000.
+Full LLM traces with per-request handlers. Open http://localhost:3010.
 
 ---
 

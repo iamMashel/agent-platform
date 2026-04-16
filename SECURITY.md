@@ -11,7 +11,7 @@
 **Do not open a public GitHub issue for security vulnerabilities.**
 
 Please report security issues privately via
-[GitHub Security Advisories](https://github.com/mashelodera/agent-platform/security/advisories/new).
+[GitHub Security Advisories](https://github.com/iamMashel/agent-platform/security/advisories/new).
 
 Include:
 - Description of the vulnerability

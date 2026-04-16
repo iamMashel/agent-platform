@@ -75,7 +75,7 @@ New behaviour requires new tests. PRs without tests for new code will be asked t
 ## Adding a new LLM node
 
 1. Create `services/agent/nodes/your_node.py`
-2. Use `_get_llm()` lazy factory (see `planner.py`) — never instantiate at module level
+2. Import and call `get_llm()` from `services.agent.llm` — it is cached and safe to call at call-time
 3. Add the node to `services/agent/graph/workflow.py`
 4. Add integration test in `tests/integration/`
 5. Add eval fixture in `tests/evals/golden_dataset.json` if routing is affected

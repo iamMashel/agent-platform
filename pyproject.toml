@@ -1,6 +1,6 @@
 [project]
 name = "agent-platform"
-version = "0.1.0"
+version = "0.2.0"
 description = "Production-grade AI agent platform with orchestration, tracing, evals, and deployment guardrails"
 readme = "README.md"
 authors = [{ name = "Mashel Odera", email = "mashelodera1@gmail.com" }]

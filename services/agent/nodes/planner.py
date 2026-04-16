@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import structlog
 
-from services.agent.graph.state import AgentState
+from services.agent.graph.state import AgentState, format_history
+from services.agent.llm import get_llm
 
 log = structlog.get_logger(__name__)
 
@@ -21,24 +22,16 @@ Respond with EXACTLY one of:
 """
 
 
-def _get_llm():
-    """Lazy LLM factory — avoids import-time side effects for tests."""
-    from services.agent.llm import get_llm
-
-    return get_llm(temperature=0)
-
-
 def planner_node(state: AgentState) -> dict[str, str | list[str] | None]:
-    history = "\n".join(state["messages"]) if state["messages"] else "(no prior messages)"
+    history = format_history(state)
     log.debug(
         "planner.start", input_length=len(state["input"]), history_turns=len(state["messages"])
     )
 
-    llm = _get_llm()
+    llm = get_llm(temperature=0)
     prompt = _SYSTEM_PROMPT.format(history=history, input=state["input"])
     raw = llm.invoke(prompt).content
     response = (raw if isinstance(raw, str) else str(raw)).strip().lower()
 
     log.debug("planner.decision", next_step=response)
-    # Append the user turn to messages so it persists across turns
     return {"next_step": response, "messages": [f"User: {state['input']}"]}

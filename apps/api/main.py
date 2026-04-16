@@ -24,7 +24,6 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.environment)
     log.info("startup", app=settings.app_name, env=settings.environment, llm=settings.llm_provider)
 
-    # Create DB tables if they don't exist (idempotent)
     try:
         from apps.api.db.session import create_tables
 
@@ -51,7 +50,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Attach SlowAPI limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
