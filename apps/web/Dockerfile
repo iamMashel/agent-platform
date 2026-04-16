@@ -14,7 +14,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN addgroup --system app && adduser --system --ingroup app app
+RUN apk add --no-cache wget && addgroup --system app && adduser --system --ingroup app app
 
 COPY --from=builder --chown=app:app /app/.output ./
 
