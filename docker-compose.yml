@@ -13,8 +13,12 @@ services:
     environment:
       LANGFUSE_HOST: http://langfuse:3000
       ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://agent:agent@agentdb:5432/agent
     depends_on:
-      postgres:
+      agentdb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       langfuse:
         condition: service_started
@@ -26,7 +30,7 @@ services:
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
-      start_period: 15s
+      start_period: 20s
       retries: 3
 
   # ── Frontend ─────────────────────────────────────────────────────────────────
@@ -45,33 +49,68 @@ services:
     networks:
       - agent-net
 
+  # ── Redis (session memory + caching) ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Agent Postgres (run history) ─────────────────────────────────────────────
+  agentdb:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent
+    volumes:
+      - agentdb_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Langfuse LLM observability ───────────────────────────────────────────────
   langfuse:
     image: langfuse/langfuse:2
     ports:
-      - "3000:3000"
+      - "3010:3000"
     environment:
-      DATABASE_URL: postgresql://langfuse:langfuse@postgres:5432/langfuse
+      DATABASE_URL: postgresql://langfuse:langfuse@langfusedb:5432/langfuse
       NEXTAUTH_SECRET: changethis_dev_secret_32chars_min
       SALT: changethis_dev_salt
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: http://localhost:3010
       TELEMETRY_ENABLED: "false"
     depends_on:
-      postgres:
+      langfusedb:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - agent-net
 
-  # ── Postgres (backing store for Langfuse) ────────────────────────────────────
-  postgres:
+  # ── Langfuse Postgres ────────────────────────────────────────────────────────
+  langfusedb:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: langfuse
       POSTGRES_PASSWORD: langfuse
       POSTGRES_DB: langfuse
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - langfusedb_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - agent-net
@@ -121,5 +160,7 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  redis_data:
+  agentdb_data:
+  langfusedb_data:
   grafana_data:

@@ -31,13 +31,21 @@ class _MockLLM:
         return resp
 
 
+_mock = _MockLLM()
+
+
+def _mock_get_llm(**_kwargs):
+    return _mock
+
+
 @pytest.fixture(autouse=True)
 def mock_llm_nodes(monkeypatch, request):
-    """Patch _get_llm() in planner and synthesizer nodes for non-eval tests."""
+    """Patch _get_llm() in planner/synthesizer and get_llm() in the unified factory."""
     if "eval" in request.node.keywords:
         # Eval tests use the real LLM — do not patch
         return
 
-    mock = _MockLLM()
-    monkeypatch.setattr("services.agent.nodes.planner._get_llm", lambda: mock)
-    monkeypatch.setattr("services.agent.nodes.synthesizer._get_llm", lambda: mock)
+    monkeypatch.setattr("services.agent.nodes.planner._get_llm", lambda: _mock)
+    monkeypatch.setattr("services.agent.nodes.synthesizer._get_llm", lambda: _mock)
+    # Also patch the unified factory for any tests that call it directly
+    monkeypatch.setattr("services.agent.llm.get_llm", _mock_get_llm)

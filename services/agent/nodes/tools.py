@@ -4,7 +4,7 @@ import structlog
 
 from apps.api.metrics import TOOL_EXECUTIONS
 from services.agent.graph.state import AgentState
-from services.agent.tools.mock_tool import search_tool
+from services.agent.tools.search import search_tool
 
 log = structlog.get_logger(__name__)
 

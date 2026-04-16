@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import structlog
 
 from services.agent.graph.state import AgentState
@@ -25,14 +23,9 @@ Respond with EXACTLY one of:
 
 def _get_llm():
     """Lazy LLM factory — avoids import-time side effects for tests."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from services.agent.llm import get_llm
 
-    from apps.api.config import settings
-
-    if settings.google_api_key:
-        os.environ["GOOGLE_API_KEY"] = settings.google_api_key
-
-    return ChatGoogleGenerativeAI(model=settings.gemini_model, temperature=0)
+    return get_llm(temperature=0)
 
 
 def planner_node(state: AgentState) -> dict[str, str | list[str] | None]:
