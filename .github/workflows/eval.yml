@@ -1,0 +1,27 @@
+name: Evals
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  eval:
+    name: LLM Regression Evals
+    runs-on: ubuntu-latest
+    # Only run if the secret is available (skips on forks)
+    if: ${{ secrets.GOOGLE_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v5.4.1
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Run eval suite
+        run: uv run pytest tests/evals -v -m eval --tb=short
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}

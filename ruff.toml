@@ -1,8 +1,20 @@
+line-length = 100
+target-version = "py312"
+
 [lint]
-# Ignore files that aren't Python
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+ignore = ["E501", "B008", "N805"]
 exclude = [
-    ".github",
-    "*.toml",
-    "*.yaml",
-    "*.yml",
+    ".venv",
+    ".git",
+    "__pycache__",
+    "apps/web",
+    "uv.lock",
 ]
+
+[lint.isort]
+known-first-party = ["apps", "services", "src"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

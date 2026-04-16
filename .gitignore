@@ -191,6 +191,13 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Node / Nuxt
+apps/web/node_modules/
+apps/web/.nuxt/
+apps/web/.output/
+apps/web/.env
+apps/web/.env.local
+
 # PyPI configuration file
 .pypirc
 

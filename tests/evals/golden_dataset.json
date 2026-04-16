@@ -1,0 +1,17 @@
+[
+  {
+    "input": "Search the web for the latest artificial intelligence news.",
+    "expected_next_step": "tool",
+    "success": true
+  },
+  {
+    "input": "Hello, how are you?",
+    "expected_next_step": "final",
+    "success": true
+  },
+  {
+    "input": "Please provide an analysis on global warming trends utilizing external tools.",
+    "expected_next_step": "tool",
+    "success": true
+  }
+]

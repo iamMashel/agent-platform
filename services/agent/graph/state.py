@@ -1,9 +1,9 @@
-from typing import TypedDict, List, Optional
+from typing import TypedDict
 
 
 class AgentState(TypedDict):
     input: str
-    messages: List[str]
-    next_step: Optional[str]
-    tool_result: Optional[str]
-    final_output: Optional[str]
+    messages: list[str]
+    next_step: str | None
+    tool_result: str | None
+    final_output: str | None
