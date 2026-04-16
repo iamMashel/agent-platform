@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     # ── LLM provider ─────────────────────────────────────────────────────────
-    # Options: gemini | openai | ollama | groq
+    # Options: gemini | openai | ollama | groq | litellm
     llm_provider: str = "gemini"
 
     # Gemini
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str | None = None
     groq_model: str = "llama-3.1-8b-instant"
+
+    # LiteLLM — use any model string litellm supports, e.g.:
+    #   gemini/gemini-2.5-flash, anthropic/claude-opus-4-7, openai/gpt-4o
+    #   groq/llama-3.1-8b-instant, bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+    litellm_model: str = "gemini/gemini-2.5-flash"
 
     # ── Langfuse observability ────────────────────────────────────────────────
     langfuse_public_key: str | None = None

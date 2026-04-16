@@ -52,6 +52,11 @@ def get_llm(temperature: float = 0.0):  # noqa: ANN201
         _setenv("GROQ_API_KEY", settings.groq_api_key)
         return ChatGroq(model=settings.groq_model, temperature=temperature)
 
+    if provider == "litellm":
+        from langchain_community.chat_models import ChatLiteLLM  # type: ignore[import-untyped]
+
+        return ChatLiteLLM(model=settings.litellm_model, temperature=temperature)
+
     raise ValueError(
-        f"Unknown LLM_PROVIDER '{provider}'. Choose one of: gemini, openai, ollama, groq"
+        f"Unknown LLM_PROVIDER '{provider}'. Choose one of: gemini, openai, ollama, groq, litellm"
     )
