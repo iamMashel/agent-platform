@@ -71,7 +71,7 @@ async def run_agent(
 
     langfuse_handler = None
     if settings.langfuse_public_key and settings.langfuse_secret_key:
-        from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
+        from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
 
         lf_kwargs: dict[str, object] = {
             "public_key": settings.langfuse_public_key,
