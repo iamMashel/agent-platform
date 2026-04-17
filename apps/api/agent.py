@@ -71,19 +71,22 @@ async def run_agent(
 
     langfuse_handler = None
     if settings.langfuse_public_key and settings.langfuse_secret_key:
-        from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
+        try:
+            from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
 
-        lf_kwargs: dict[str, object] = {
-            "public_key": settings.langfuse_public_key,
-            "secret_key": settings.langfuse_secret_key,
-            "host": settings.langfuse_host,
-            "user_id": body.user_id,
-            "session_id": thread_id,
-            "trace_name": _LANGFUSE_TRACE_NAME,
-            "tags": [settings.environment, settings.llm_provider],
-        }
-        langfuse_handler = CallbackHandler(**lf_kwargs)  # type: ignore[arg-type]
-        invoke_config["callbacks"] = [langfuse_handler]
+            lf_kwargs: dict[str, object] = {
+                "public_key": settings.langfuse_public_key,
+                "secret_key": settings.langfuse_secret_key,
+                "host": settings.langfuse_host,
+                "user_id": body.user_id,
+                "session_id": thread_id,
+                "trace_name": _LANGFUSE_TRACE_NAME,
+                "tags": [settings.environment, settings.llm_provider],
+            }
+            langfuse_handler = CallbackHandler(**lf_kwargs)  # type: ignore[arg-type]
+            invoke_config["callbacks"] = [langfuse_handler]
+        except Exception as exc:
+            log.warning("langfuse.callback.unavailable", error=str(exc))
 
     start = time.perf_counter()
     result = await _agent.ainvoke(cast(AgentState, state), config=invoke_config)
