@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import structlog
+from langchain_core.runnables import RunnableConfig
 
 from services.agent.graph.state import AgentState, format_history
 from services.agent.llm import get_llm
@@ -21,7 +22,9 @@ Provide a clear, concise answer.
 """
 
 
-def synth_node(state: AgentState) -> dict[str, str | list[str] | None]:
+def synth_node(
+    state: AgentState, config: RunnableConfig | None = None
+) -> dict[str, str | list[str] | None]:
     history = format_history(state)
     log.debug("synth.start", has_tool_result=state.get("tool_result") is not None)
 
@@ -31,7 +34,7 @@ def synth_node(state: AgentState) -> dict[str, str | list[str] | None]:
         tool_result=state.get("tool_result") or "N/A",
         input=state["input"],
     )
-    raw = llm.invoke(prompt).content
+    raw = llm.invoke(prompt, config=config).content
     response = raw if isinstance(raw, str) else str(raw)
 
     log.debug("synth.complete", output_length=len(response))
