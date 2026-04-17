@@ -1,5 +1,18 @@
 <template>
   <div class="flex flex-col h-[calc(100vh-57px)]">
+    <!-- Session header -->
+    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800/60 bg-gray-950">
+      <span class="text-[11px] text-gray-500 font-mono">
+        Session: <span class="text-gray-400">{{ sessionId }}</span>
+      </span>
+      <button
+        @click="newSession"
+        class="text-[11px] text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded-lg hover:bg-gray-800"
+      >
+        + New chat
+      </button>
+    </div>
+
     <div class="flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar" ref="chatContainer">
       <!-- Empty state -->
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -184,6 +197,12 @@ function scrollToBottom(): void {
   if (chatContainer.value) {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight
   }
+}
+
+function newSession(): void {
+  messages.value = []
+  error.value = null
+  sessionId.value = `session-${Date.now()}`
 }
 </script>
 
