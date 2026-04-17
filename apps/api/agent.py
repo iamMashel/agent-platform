@@ -13,12 +13,9 @@ from apps.api.db.session import AsyncSessionLocal
 from apps.api.metrics import AGENT_RUNS, agent_run_duration_seconds
 from apps.api.security import RequireApiKey, limiter
 from services.agent.graph.state import AgentState
-from services.agent.graph.workflow import build_graph
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 log = structlog.get_logger(__name__)
-
-_agent = build_graph()
 
 _LANGFUSE_TRACE_NAME = "agent-workflow"
 
@@ -89,7 +86,7 @@ async def run_agent(
             log.warning("langfuse.callback.unavailable", error=str(exc))
 
     start = time.perf_counter()
-    result = await _agent.ainvoke(cast(AgentState, state), config=invoke_config)
+    result = await request.app.state.agent.ainvoke(cast(AgentState, state), config=invoke_config)
     duration = time.perf_counter() - start
 
     agent_run_duration_seconds.observe(duration)

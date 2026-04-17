@@ -26,6 +26,10 @@ LABEL org.opencontainers.image.title="agent-platform" \
 
 WORKDIR /app
 
+# libpq5 required by psycopg3 (LangGraph Postgres checkpointer)
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root user
 RUN groupadd --system app && useradd --system --gid app app
 

@@ -15,6 +15,7 @@ from apps.api.logging_config import configure_logging
 from apps.api.middleware import ObservabilityMiddleware
 from apps.api.runs import router as runs_router
 from apps.api.security import limiter
+from services.agent.graph.workflow import build_graph
 
 log = structlog.get_logger(__name__)
 
@@ -31,7 +32,34 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         log.warning("db.init.skipped", reason=str(exc))
 
+    # Build agent graph with Postgres checkpointer for persistent memory.
+    # Uses the same agentdb already running; falls back to MemorySaver if unavailable.
+    # AsyncPostgresSaver uses psycopg3 connection format (no +asyncpg prefix).
+    pg_conn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    try:
+        from langgraph.checkpoint.postgres.aio import (
+            AsyncPostgresSaver,  # type: ignore[import-untyped]
+        )
+
+        checkpointer_ctx = AsyncPostgresSaver.from_conn_string(pg_conn)
+        checkpointer = await checkpointer_ctx.__aenter__()
+        await checkpointer.setup()
+        app.state.agent = build_graph(checkpointer=checkpointer)
+        app.state.checkpointer_ctx = checkpointer_ctx
+        log.info("memory.backend", backend="postgres")
+    except Exception as exc:
+        log.warning("memory.postgres.unavailable", error=str(exc), fallback="MemorySaver")
+        app.state.agent = build_graph()
+        app.state.checkpointer_ctx = None
+
     yield
+
+    ctx = getattr(app.state, "checkpointer_ctx", None)
+    if ctx is not None:
+        try:  # noqa: SIM105
+            await ctx.__aexit__(None, None, None)
+        except Exception:
+            pass
 
     try:
         from apps.api.db.session import close_engine
