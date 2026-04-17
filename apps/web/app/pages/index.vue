@@ -128,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { marked } from 'marked'
 
 marked.setOptions({ breaks: true })
@@ -136,6 +136,8 @@ marked.setOptions({ breaks: true })
 function renderMarkdown(text: string): string {
   return marked.parse(text) as string
 }
+
+const SESSION_KEY = 'agent-session-id'
 
 const { runAgent } = useAgent()
 const chatContainer = ref<HTMLElement | null>(null)
@@ -151,7 +153,12 @@ const messages = ref<Message[]>([])
 const inputText = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
-const sessionId = ref(`session-${Date.now()}`)
+
+const storedId = import.meta.client ? localStorage.getItem(SESSION_KEY) : null
+const sessionId = ref(storedId || `session-${Date.now()}`)
+if (import.meta.client) {
+  watch(sessionId, (id) => localStorage.setItem(SESSION_KEY, id), { immediate: true })
+}
 
 const suggestedPrompts = [
   'Search for the latest AI news',

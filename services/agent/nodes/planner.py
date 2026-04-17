@@ -8,21 +8,21 @@ from services.agent.llm import get_llm
 log = structlog.get_logger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a planner agent. You have a conversation history and a new user message.
+You are a routing agent. Read the user message and output EXACTLY one token.
 
 Conversation history:
 {history}
 
-New user message: {input}
+User message: {input}
 
-Decide whether the user's request requires an external search or can be answered directly.
-Respond with EXACTLY one of:
-- "tool:search"   — if the user needs up-to-date or external information
-- "final"         — if you can answer from knowledge or conversation history
-"""
+Output rules — one line only, no explanation:
+- Output the exact string  tool:search  when the user asks about current events, live data, news, prices, sports scores, or any fact that may have changed recently.
+- Output the exact string  final  when you can answer from your training knowledge or the conversation history above.
+
+Your output:"""
 
 
-def planner_node(state: AgentState) -> dict[str, str | list[str] | None]:
+def planner_node(state: AgentState) -> dict[str, str | None]:
     history = format_history(state)
     log.debug(
         "planner.start", input_length=len(state["input"]), history_turns=len(state["messages"])
@@ -31,7 +31,15 @@ def planner_node(state: AgentState) -> dict[str, str | list[str] | None]:
     llm = get_llm(temperature=0)
     prompt = _SYSTEM_PROMPT.format(history=history, input=state["input"])
     raw = llm.invoke(prompt).content
-    response = (raw if isinstance(raw, str) else str(raw)).strip().lower()
+    # Take only the first non-empty line to avoid verbose LLM output
+    first_line = next(
+        (
+            ln.strip()
+            for ln in (raw if isinstance(raw, str) else str(raw)).splitlines()
+            if ln.strip()
+        ),
+        "final",
+    ).lower()
 
-    log.debug("planner.decision", next_step=response)
-    return {"next_step": response, "messages": [f"User: {state['input']}"]}
+    log.debug("planner.decision", next_step=first_line)
+    return {"next_step": first_line}

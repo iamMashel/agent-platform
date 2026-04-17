@@ -35,4 +35,7 @@ def synth_node(state: AgentState) -> dict[str, str | list[str] | None]:
     response = raw if isinstance(raw, str) else str(raw)
 
     log.debug("synth.complete", output_length=len(response))
-    return {"final_output": response, "messages": [f"Assistant: {response}"]}
+    return {
+        "final_output": response,
+        "messages": [f"User: {state['input']}", f"Assistant: {response}"],
+    }
