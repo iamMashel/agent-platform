@@ -1,6 +1,7 @@
 """Unified LLM factory — selects provider via LLM_PROVIDER env var.
 
-Providers: gemini (default), openai, ollama, groq
+Providers: gemini (default), openai, ollama, groq, litellm
+LiteLLM gives access to 100+ models via a single LITELLM_MODEL env var.
 """
 
 from __future__ import annotations
