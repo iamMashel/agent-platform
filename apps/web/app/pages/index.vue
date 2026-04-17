@@ -41,7 +41,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-wider mb-1.5 opacity-60">
               {{ msg.role === 'user' ? 'You' : 'Agent' }}
             </div>
-            <div class="leading-relaxed text-sm whitespace-pre-wrap">{{ msg.content }}</div>
+            <div class="leading-relaxed text-sm md-content" v-html="renderMarkdown(msg.content)" />
             <!-- Tool result badge -->
             <div v-if="msg.tool_result" class="mt-2">
               <details class="text-xs">
@@ -116,6 +116,13 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
+import { marked } from 'marked'
+
+marked.setOptions({ breaks: true })
+
+function renderMarkdown(text: string): string {
+  return marked.parse(text) as string
+}
 
 const { runAgent } = useAgent()
 const chatContainer = ref<HTMLElement | null>(null)
@@ -185,4 +192,24 @@ function scrollToBottom(): void {
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Markdown content styling */
+.md-content :deep(p) { margin: 0.35em 0; }
+.md-content :deep(p:first-child) { margin-top: 0; }
+.md-content :deep(p:last-child) { margin-bottom: 0; }
+.md-content :deep(strong) { font-weight: 600; color: #f9fafb; }
+.md-content :deep(em) { font-style: italic; }
+.md-content :deep(code) { background: #111827; border-radius: 4px; padding: 1px 5px; font-size: 0.8em; font-family: ui-monospace, monospace; color: #a5b4fc; }
+.md-content :deep(pre) { background: #111827; border-radius: 8px; padding: 10px 14px; overflow-x: auto; margin: 0.5em 0; }
+.md-content :deep(pre code) { background: transparent; padding: 0; font-size: 0.78em; color: #d1d5db; }
+.md-content :deep(ul) { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
+.md-content :deep(ol) { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
+.md-content :deep(li) { margin: 0.15em 0; }
+.md-content :deep(h1), .md-content :deep(h2), .md-content :deep(h3) { font-weight: 600; color: #f9fafb; margin: 0.6em 0 0.3em; }
+.md-content :deep(h1) { font-size: 1.15em; }
+.md-content :deep(h2) { font-size: 1.05em; }
+.md-content :deep(h3) { font-size: 0.95em; }
+.md-content :deep(blockquote) { border-left: 3px solid #4b5563; padding-left: 0.75em; color: #9ca3af; margin: 0.4em 0; }
+.md-content :deep(a) { color: #60a5fa; text-decoration: underline; }
+.md-content :deep(hr) { border-color: #374151; margin: 0.5em 0; }
 </style>

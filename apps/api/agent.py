@@ -66,24 +66,26 @@ async def run_agent(
 
     invoke_config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-    langfuse_handler = None
+    lf_client = None
+    lf_trace = None
     if settings.langfuse_public_key and settings.langfuse_secret_key:
         try:
-            from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
+            from langfuse import Langfuse  # type: ignore[import-untyped]
 
-            lf_kwargs: dict[str, object] = {
-                "public_key": settings.langfuse_public_key,
-                "secret_key": settings.langfuse_secret_key,
-                "host": settings.langfuse_host,
-                "user_id": body.user_id,
-                "session_id": thread_id,
-                "trace_name": _LANGFUSE_TRACE_NAME,
-                "tags": [settings.environment, settings.llm_provider],
-            }
-            langfuse_handler = CallbackHandler(**lf_kwargs)  # type: ignore[arg-type]
-            invoke_config["callbacks"] = [langfuse_handler]
+            lf_client = Langfuse(
+                public_key=settings.langfuse_public_key,
+                secret_key=settings.langfuse_secret_key,
+                host=settings.langfuse_host,
+            )
+            lf_trace = lf_client.trace(
+                name=_LANGFUSE_TRACE_NAME,
+                user_id=body.user_id,
+                session_id=thread_id,
+                tags=[settings.environment, settings.llm_provider],
+                input=body.input,
+            )
         except Exception as exc:
-            log.warning("langfuse.callback.unavailable", error=str(exc))
+            log.warning("langfuse.trace.init_failed", error=str(exc))
 
     start = time.perf_counter()
     result = await request.app.state.agent.ainvoke(cast(AgentState, state), config=invoke_config)
@@ -101,8 +103,13 @@ async def run_agent(
         thread_id=thread_id,
     )
 
-    if langfuse_handler is not None:
-        background_tasks.add_task(langfuse_handler.langfuse.flush)
+    if lf_trace is not None:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            lf_trace.update(output=result.get("final_output"))
+    if lf_client is not None:
+        background_tasks.add_task(lf_client.flush)
 
     background_tasks.add_task(
         _persist_run,
