@@ -67,33 +67,18 @@ async def run_agent(
 
     invoke_config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-    # ── Langfuse v3 init ─────────────────────────────────────────────────────
-    # Langfuse() sets up the OTel tracer provider.
-    # CallbackHandler() attaches to the LangGraph invocation via the callbacks
-    # list and automatically captures node spans, LLM generations (prompt +
-    # output + tokens + latency), and tool calls.
-    # update_current_trace() sets user/session metadata on the active trace.
-    lf_client: Any = None
-    if settings.langfuse_public_key and settings.langfuse_secret_key:
-        with contextlib.suppress(Exception):
-            from langfuse import Langfuse  # type: ignore[import-untyped]
-            from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
-
-            lf_client = Langfuse(
-                public_key=settings.langfuse_public_key,
-                secret_key=settings.langfuse_secret_key,
-                host=settings.langfuse_host,
-            )
-            invoke_config["callbacks"] = [CallbackHandler()]
-
     # ── Run agent ────────────────────────────────────────────────────────────
+    # Use the single Langfuse client initialised at startup (app.state.langfuse).
+    # CallbackHandler is created INSIDE start_as_current_observation so that the
+    # active OTel span is already set when the handler builds its child spans —
+    # this is what makes node/LLM observations appear nested under the root trace.
+    lf_client: Any = getattr(request.app.state, "langfuse", None)
+
     start = time.perf_counter()
     result: dict[str, Any] = {}
 
     if lf_client is not None:
-        # Wrap invocation in a root observation so user/session/tags are
-        # attached to the trace and all child spans inherit the context.
-        async with lf_client.start_as_current_observation(
+        with lf_client.start_as_current_observation(
             name=_LANGFUSE_TRACE_NAME,
             as_type="span",
             input={"user_message": body.input},
@@ -106,6 +91,13 @@ async def run_agent(
                     tags=[settings.environment, settings.llm_provider],
                     metadata={"thread_id": thread_id, "llm_provider": settings.llm_provider},
                 )
+            # Create CallbackHandler here, after the parent span is active,
+            # so LangGraph node spans are captured as children of root_obs.
+            with contextlib.suppress(Exception):
+                from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
+
+                invoke_config["callbacks"] = [CallbackHandler()]
+
             result = await request.app.state.agent.ainvoke(
                 cast(AgentState, state), config=invoke_config
             )

@@ -13,21 +13,23 @@ export function useHealth() {
 
   async function checkHealth(): Promise<void> {
     const start = Date.now()
+    const url = `${apiUrl}/health`
     try {
-      const response = await fetch(`${apiUrl}/health`)
+      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
       const latency_ms = Date.now() - start
 
       if (!response.ok) {
-        health.value = { status: 'error', error: `HTTP ${response.status}`, latency_ms }
+        health.value = { status: 'error', error: `HTTP ${response.status} from ${url}`, latency_ms }
         return
       }
 
       const data = await response.json()
       health.value = { status: 'ok', ...data, latency_ms }
     } catch (e: unknown) {
+      const reason = e instanceof Error ? e.message : 'Connection failed'
       health.value = {
         status: 'error',
-        error: e instanceof Error ? e.message : 'Connection failed',
+        error: `${url} — ${reason}`,
         latency_ms: Date.now() - start,
       }
     }

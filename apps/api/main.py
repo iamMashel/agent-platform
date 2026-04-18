@@ -1,3 +1,4 @@
+import contextlib
 from contextlib import asynccontextmanager
 
 import structlog
@@ -26,11 +27,31 @@ async def lifespan(app: FastAPI):
     log.info("startup", app=settings.app_name, env=settings.environment, llm=settings.llm_provider)
 
     try:
-        from apps.api.db.session import create_tables
+        import asyncio
 
-        await create_tables()
+        from alembic import command as alembic_command
+        from alembic.config import Config as AlembicConfig
+
+        alembic_cfg = AlembicConfig("alembic.ini")
+        await asyncio.to_thread(alembic_command.upgrade, alembic_cfg, "head")
+        log.info("db.migrations.applied")
     except Exception as exc:
-        log.warning("db.init.skipped", reason=str(exc))
+        log.warning("db.migrations.skipped", reason=str(exc))
+
+    # Initialize Langfuse once at startup so the OTel tracer provider is set up
+    # exactly once. Re-creating Langfuse() per request resets the OTel context
+    # and breaks parent-span propagation for child observations.
+    app.state.langfuse = None
+    if settings.langfuse_public_key and settings.langfuse_secret_key:
+        with contextlib.suppress(Exception):
+            from langfuse import Langfuse  # type: ignore[import-untyped]
+
+            app.state.langfuse = Langfuse(
+                public_key=settings.langfuse_public_key,
+                secret_key=settings.langfuse_secret_key,
+                host=settings.langfuse_host,
+            )
+            log.info("tracing.backend", backend="langfuse", host=settings.langfuse_host)
 
     # Build agent graph with Postgres checkpointer for persistent memory.
     # Uses the same agentdb already running; falls back to MemorySaver if unavailable.
@@ -53,6 +74,11 @@ async def lifespan(app: FastAPI):
         app.state.checkpointer_ctx = None
 
     yield
+
+    lf = getattr(app.state, "langfuse", None)
+    if lf is not None:
+        with contextlib.suppress(Exception):
+            lf.flush()
 
     ctx = getattr(app.state, "checkpointer_ctx", None)
     if ctx is not None:

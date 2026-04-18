@@ -17,15 +17,18 @@
 ## Features
 
 - **Multi-provider LLM support** via LiteLLM — swap between Gemini, DeepSeek, Claude, GPT-4o, Groq, Ollama, and 100+ more with a single env var change, zero code changes
+- **Split planner model** — route the one-token routing decision to a cheap/fast model (`PLANNER_MODEL`) while keeping a capable model for synthesis; falls back to the same model if unset
+- **LLM retry with jitter** — all LLM calls automatically retry up to 3× with exponential backoff and random jitter, handling transient rate-limit and network errors
 - **FastAPI** production API with structured JSON logging and request-ID tracing
 - **LangGraph** workflow: `planner → tool → synthesizer` state machine with persistent memory across turns
+- **History truncation** — only the most recent 10 turns are sent to the LLM; full history is preserved in the Postgres checkpoint
 - **DuckDuckGo search** — real web search with no API key required
-- **Redis** session memory — conversation context survives API restarts
-- **Postgres** run history — every agent run persisted for audit and replay
-- **Langfuse** LLM tracing — full trace context, per-request handlers, generation-level spans
-- **Prometheus + Grafana** — request rate, latency histograms (p50/p95/p99), agent run duration, error rate
-- **Nuxt 3 frontend** — dark-mode chat UI + live status dashboard
-- **Docker Compose** 8-container stack — API, frontend, Redis, Postgres, Langfuse, Prometheus, Grafana
+- **Postgres** run history and LangGraph checkpoints — every agent run persisted for audit and replay; persistent multi-turn memory per session
+- **Alembic** database migrations — schema changes are versioned and applied automatically at startup
+- **Langfuse** LLM tracing — full trace context, node-level spans nested under a root trace per request
+- **Prometheus + Grafana** — request rate, latency histograms (p50/p95/p99), agent run duration, tool execution counts
+- **Nuxt 3 frontend** — dark-mode chat UI + live status dashboard with 120s request timeout and clear error messages
+- **Docker Compose** 11-container stack — API, frontend, Redis, Postgres, Langfuse (web + worker + ClickHouse + MinIO), Prometheus, Grafana
 - **uv** — fast, reproducible Python dependency management
 - **Ruff + Pyright** — lint, format, and strict type checking
 - **pytest** — unit, integration, and eval suites with automatic LLM mocking
@@ -243,8 +246,12 @@ agent-platform/
 │       ├── tools/             # DuckDuckGo search tool
 │       └── llm.py             # Unified LLM factory (all providers)
 ├── infra/
-│   └── docker/
-│       └── Dockerfile         # Multistage Python build
+│   ├── docker/
+│   │   └── Dockerfile         # Multistage Python build
+│   ├── migrations/            # Alembic migration scripts
+│   │   ├── env.py             # Migration env (excludes LangGraph tables)
+│   │   └── versions/          # Versioned schema migrations
+│   └── clickhouse/            # ClickHouse config (used by Langfuse)
 ├── monitoring/
 │   ├── prometheus/            # prometheus.yml scrape config
 │   └── grafana/               # Provisioned datasources + dashboards
@@ -291,6 +298,7 @@ just ci            # full local CI gate
 | `OLLAMA_BASE_URL`  | `http://localhost:11434` | Ollama server URL                        |
 | `OLLAMA_MODEL`     | `llama3.2`         | Ollama model name                              |
 | `LITELLM_MODEL`    | `gemini/gemini-2.5-flash` | Any LiteLLM model string              |
+| `PLANNER_MODEL`    | *(same as LITELLM_MODEL)* | Cheaper model for the one-token routing step; falls back to `LITELLM_MODEL` if blank |
 
 Any API key supported by LiteLLM (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, etc.) is passed through automatically.
 
@@ -344,8 +352,8 @@ Full LLM traces with per-request handlers. Open http://localhost:3010. Create a 
 | Orchestration | LangGraph, LangChain                                |
 | LLM           | LiteLLM (100+ providers) · Gemini 2.5 Flash default |
 | Search        | DuckDuckGo (no API key)                             |
-| Memory        | Redis + LangGraph MemorySaver                       |
-| History       | Postgres + SQLAlchemy async + asyncpg               |
+| Memory        | LangGraph AsyncPostgresSaver (falls back to MemorySaver) |
+| History       | Postgres + SQLAlchemy async + asyncpg + Alembic     |
 | Tracing       | Langfuse                                            |
 | Metrics       | Prometheus, Grafana                                 |
 | Logging       | structlog (JSON in production)                      |

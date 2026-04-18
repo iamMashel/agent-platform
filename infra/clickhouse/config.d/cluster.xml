@@ -1,0 +1,51 @@
+<clickhouse>
+    <!-- Bind to all interfaces so other containers can connect -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- Built-in Keeper — single node, no external ZooKeeper needed -->
+    <keeper_server>
+        <tcp_port>9181</tcp_port>
+        <server_id>1</server_id>
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <raft_logs_level>warning</raft_logs_level>
+        </coordination_settings>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>127.0.0.1</hostname>
+                <port>9444</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+
+    <!-- Point ZooKeeper client to local Keeper -->
+    <zookeeper>
+        <node>
+            <host>127.0.0.1</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <!-- Single-shard cluster named 'default' — satisfies ON CLUSTER default queries -->
+    <remote_servers>
+        <default>
+            <shard>
+                <replica>
+                    <host>127.0.0.1</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </default>
+    </remote_servers>
+
+    <!-- Replica identity macros -->
+    <macros>
+        <cluster>default</cluster>
+        <shard>1</shard>
+        <replica>clickhouse-01</replica>
+    </macros>
+</clickhouse>

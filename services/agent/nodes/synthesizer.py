@@ -22,9 +22,7 @@ Provide a clear, concise answer.
 """
 
 
-def synth_node(
-    state: AgentState, config: RunnableConfig | None = None
-) -> dict[str, str | list[str] | None]:
+def synth_node(state: AgentState, config: RunnableConfig) -> dict[str, str | list[str] | None]:
     history = format_history(state)
     log.debug("synth.start", has_tool_result=state.get("tool_result") is not None)
 

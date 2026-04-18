@@ -9,7 +9,7 @@ from services.agent.llm import get_llm
 log = structlog.get_logger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a routing agent. Read the user message and output EXACTLY one token.
+You are a routing agent. Read the user message and decide how to answer.
 
 Conversation history:
 {history}
@@ -17,19 +17,19 @@ Conversation history:
 User message: {input}
 
 Output rules — one line only, no explanation:
-- Output the exact string  tool:search  when the user asks about current events, live data, news, prices, sports scores, or any fact that may have changed recently.
-- Output the exact string  final  when you can answer from your training knowledge or the conversation history above.
+- When the user asks about current events, live data, news, prices, sports scores, or any fact that may have changed recently: output  tool:search <concise search query>  (e.g. "tool:search bitcoin price today")
+- When you can answer from training knowledge or the conversation history: output  final
 
 Your output:"""
 
 
-def planner_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, str | None]:
+def planner_node(state: AgentState, config: RunnableConfig) -> dict[str, str | None]:
     history = format_history(state)
     log.debug(
         "planner.start", input_length=len(state["input"]), history_turns=len(state["messages"])
     )
 
-    llm = get_llm(temperature=0)
+    llm = get_llm(temperature=0, task="planner")
     prompt = _SYSTEM_PROMPT.format(history=history, input=state["input"])
     raw = llm.invoke(prompt, config=config).content
     # Take only the first non-empty line to avoid verbose LLM output
