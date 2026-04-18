@@ -211,11 +211,14 @@ class TestAlembicMigration:
         assert len(versions) >= 1, "No migration scripts found"
 
     def test_alembic_is_at_head(self):
-        """The live database must be at the latest migration revision."""
+        """The live database must be at the latest migration revision.
+        Skipped automatically when no Postgres is available (e.g. in unit CI)."""
+        import pytest
         from alembic.config import Config as AlembicConfig
         from alembic.runtime.migration import MigrationContext
         from alembic.script import ScriptDirectory
         from sqlalchemy import create_engine
+        from sqlalchemy.exc import OperationalError
 
         from apps.api.config import settings
 
@@ -223,6 +226,10 @@ class TestAlembicMigration:
         engine = create_engine(
             sync_url, poolclass=__import__("sqlalchemy.pool", fromlist=["NullPool"]).NullPool
         )
+        try:
+            engine.connect().close()
+        except OperationalError:
+            pytest.skip("Postgres not available — skipping DB migration check")
 
         alembic_cfg = AlembicConfig("alembic.ini")
         script = ScriptDirectory.from_config(alembic_cfg)
