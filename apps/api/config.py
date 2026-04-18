@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "Agent Platform"
     environment: str = "development"
@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     #   gemini/gemini-2.5-flash, anthropic/claude-opus-4-7, openai/gpt-4o
     #   groq/llama-3.1-8b-instant, bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
     litellm_model: str = "gemini/gemini-2.5-flash"
+    # Cheap fast model used only for planner routing (outputs one token).
+    # Defaults to same as litellm_model so it works out-of-the-box without config.
+    planner_model: str = ""
+
+    @property
+    def resolved_planner_model(self) -> str:
+        return self.planner_model or self.litellm_model
 
     # ── Langfuse observability ────────────────────────────────────────────────
     langfuse_public_key: str | None = None

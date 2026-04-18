@@ -10,8 +10,8 @@ from services.agent.nodes.tools import tool_node
 
 
 def _route(state: AgentState) -> str:
-    next_step = state.get("next_step") or ""
-    return "tool" if "tool" in next_step else "synth"
+    next_step = (state.get("next_step") or "").strip().lower()
+    return "tool" if next_step.startswith("tool:") else "synth"
 
 
 def build_graph(checkpointer: Any = None) -> Any:

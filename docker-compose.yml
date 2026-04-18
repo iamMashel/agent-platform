@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      LANGFUSE_HOST: http://langfuse:3000
+      LANGFUSE_HOST: http://langfuse-web:3000
       ENVIRONMENT: production
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+asyncpg://agent:agent@agentdb:5432/agent
@@ -20,7 +20,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      langfuse:
+      langfuse-web:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -49,7 +49,7 @@ services:
     networks:
       - agent-net
 
-  # ── Redis (session memory + caching) ─────────────────────────────────────────
+  # ── Redis (shared — used by agent platform AND Langfuse worker queue) ────────
   redis:
     image: redis:7-alpine
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -66,13 +66,15 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Agent Postgres (run history) ─────────────────────────────────────────────
+  # ── Agent Postgres (run history + LangGraph checkpoints) ─────────────────────
   agentdb:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: agent
       POSTGRES_PASSWORD: agent
       POSTGRES_DB: agent
+    ports:
+      - "5433:5432"
     volumes:
       - agentdb_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -84,25 +86,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Langfuse LLM observability ───────────────────────────────────────────────
-  langfuse:
-    image: langfuse/langfuse:2
-    ports:
-      - "3010:3000"
-    environment:
-      DATABASE_URL: postgresql://langfuse:langfuse@langfusedb:5432/langfuse
-      NEXTAUTH_SECRET: changethis_dev_secret_32chars_min
-      SALT: changethis_dev_salt
-      NEXTAUTH_URL: http://localhost:3010
-      TELEMETRY_ENABLED: "false"
-    depends_on:
-      langfusedb:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - agent-net
-
-  # ── Langfuse Postgres ────────────────────────────────────────────────────────
+  # ── Langfuse Postgres (user accounts, API keys, project config) ──────────────
   langfusedb:
     image: postgres:16-alpine
     environment:
@@ -119,6 +103,143 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── ClickHouse (Langfuse v3 — stores traces, spans, generations) ─────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.12-alpine
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./infra/clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+    restart: unless-stopped
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (Langfuse v3 — S3-compatible blob storage for media/exports) ────────
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9092:9000"
+      - "9093:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO bucket init (creates the 'langfuse' bucket on first run) ────────────
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minio miniosecret &&
+      mc mb local/langfuse --ignore-existing
+      "
+    networks:
+      - agent-net
+    restart: on-failure
+
+  # ── Langfuse Web (v3) ────────────────────────────────────────────────────────
+  langfuse-web:
+    image: langfuse/langfuse:3
+    ports:
+      - "3010:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfusedb:5432/langfuse
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:clickhouse@clickhouse:9000/default
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      NEXTAUTH_SECRET: changethis_dev_secret_32chars_min
+      SALT: changethis_dev_salt
+      NEXTAUTH_URL: http://localhost:3010
+      # Generate with: openssl rand -hex 32
+      ENCRYPTION_KEY: bc7e26109507c8497949ad8762321373f38ea92cd64c0703ee6e1b4ccf6f4c44
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      langfusedb:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+  # ── Langfuse Worker (v3) — processes async jobs (scoring, exports, evals) ────
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfusedb:5432/langfuse
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:clickhouse@clickhouse:9000/default
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ENCRYPTION_KEY: bc7e26109507c8497949ad8762321373f38ea92cd64c0703ee6e1b4ccf6f4c44
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      langfusedb:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - agent-net
 
   # ── Prometheus metrics ───────────────────────────────────────────────────────
   prometheus:
@@ -163,4 +284,6 @@ volumes:
   redis_data:
   agentdb_data:
   langfusedb_data:
+  clickhouse_data:
+  minio_data:
   grafana_data:

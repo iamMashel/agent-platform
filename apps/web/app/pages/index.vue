@@ -1,5 +1,18 @@
 <template>
   <div class="flex flex-col h-[calc(100vh-57px)]">
+    <!-- Session header -->
+    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800/60 bg-gray-950">
+      <span class="text-[11px] text-gray-500 font-mono">
+        Session: <span class="text-gray-400">{{ sessionId }}</span>
+      </span>
+      <button
+        @click="newSession"
+        class="text-[11px] text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded-lg hover:bg-gray-800"
+      >
+        + New chat
+      </button>
+    </div>
+
     <div class="flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar" ref="chatContainer">
       <!-- Empty state -->
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -41,7 +54,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-wider mb-1.5 opacity-60">
               {{ msg.role === 'user' ? 'You' : 'Agent' }}
             </div>
-            <div class="leading-relaxed text-sm whitespace-pre-wrap">{{ msg.content }}</div>
+            <div class="leading-relaxed text-sm md-content" v-html="renderMarkdown(msg.content)" />
             <!-- Tool result badge -->
             <div v-if="msg.tool_result" class="mt-2">
               <details class="text-xs">
@@ -115,7 +128,16 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
+import { marked } from 'marked'
+
+marked.setOptions({ breaks: true })
+
+function renderMarkdown(text: string): string {
+  return marked.parse(text) as string
+}
+
+const SESSION_KEY = 'agent-session-id'
 
 const { runAgent } = useAgent()
 const chatContainer = ref<HTMLElement | null>(null)
@@ -131,7 +153,12 @@ const messages = ref<Message[]>([])
 const inputText = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
-const sessionId = ref(`session-${Date.now()}`)
+
+const storedId = import.meta.client ? localStorage.getItem(SESSION_KEY) : null
+const sessionId = ref(storedId || `session-${Date.now()}`)
+if (import.meta.client) {
+  watch(sessionId, (id) => localStorage.setItem(SESSION_KEY, id), { immediate: true })
+}
 
 const suggestedPrompts = [
   'Search for the latest AI news',
@@ -178,6 +205,12 @@ function scrollToBottom(): void {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight
   }
 }
+
+function newSession(): void {
+  messages.value = []
+  error.value = null
+  sessionId.value = `session-${Date.now()}`
+}
 </script>
 
 <style scoped>
@@ -185,4 +218,24 @@ function scrollToBottom(): void {
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Markdown content styling */
+.md-content :deep(p) { margin: 0.35em 0; }
+.md-content :deep(p:first-child) { margin-top: 0; }
+.md-content :deep(p:last-child) { margin-bottom: 0; }
+.md-content :deep(strong) { font-weight: 600; color: #f9fafb; }
+.md-content :deep(em) { font-style: italic; }
+.md-content :deep(code) { background: #111827; border-radius: 4px; padding: 1px 5px; font-size: 0.8em; font-family: ui-monospace, monospace; color: #a5b4fc; }
+.md-content :deep(pre) { background: #111827; border-radius: 8px; padding: 10px 14px; overflow-x: auto; margin: 0.5em 0; }
+.md-content :deep(pre code) { background: transparent; padding: 0; font-size: 0.78em; color: #d1d5db; }
+.md-content :deep(ul) { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
+.md-content :deep(ol) { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
+.md-content :deep(li) { margin: 0.15em 0; }
+.md-content :deep(h1), .md-content :deep(h2), .md-content :deep(h3) { font-weight: 600; color: #f9fafb; margin: 0.6em 0 0.3em; }
+.md-content :deep(h1) { font-size: 1.15em; }
+.md-content :deep(h2) { font-size: 1.05em; }
+.md-content :deep(h3) { font-size: 0.95em; }
+.md-content :deep(blockquote) { border-left: 3px solid #4b5563; padding-left: 0.75em; color: #9ca3af; margin: 0.4em 0; }
+.md-content :deep(a) { color: #60a5fa; text-decoration: underline; }
+.md-content :deep(hr) { border-color: #374151; margin: 0.5em 0; }
 </style>

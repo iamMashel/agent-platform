@@ -17,7 +17,7 @@ import pytest
 class _MockLLM:
     """Deterministic LLM stub — returns predictable content based on prompt context."""
 
-    def invoke(self, prompt: str) -> MagicMock:
+    def invoke(self, prompt: str, **_kwargs) -> MagicMock:
         resp = MagicMock()
         # Planner prompts contain "tool:search" or "final" decision cues
         if (

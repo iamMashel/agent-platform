@@ -1,6 +1,7 @@
+import contextlib
 import time
 import uuid
-from typing import cast
+from typing import Any, cast
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Request
@@ -66,29 +67,48 @@ async def run_agent(
 
     invoke_config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-    langfuse_handler = None
-    if settings.langfuse_public_key and settings.langfuse_secret_key:
-        try:
-            from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
-
-            lf_kwargs: dict[str, object] = {
-                "public_key": settings.langfuse_public_key,
-                "secret_key": settings.langfuse_secret_key,
-                "host": settings.langfuse_host,
-                "user_id": body.user_id,
-                "session_id": thread_id,
-                "trace_name": _LANGFUSE_TRACE_NAME,
-                "tags": [settings.environment, settings.llm_provider],
-            }
-            langfuse_handler = CallbackHandler(**lf_kwargs)  # type: ignore[arg-type]
-            invoke_config["callbacks"] = [langfuse_handler]
-        except Exception as exc:
-            log.warning("langfuse.callback.unavailable", error=str(exc))
+    # ── Run agent ────────────────────────────────────────────────────────────
+    # Use the single Langfuse client initialised at startup (app.state.langfuse).
+    # CallbackHandler is created INSIDE start_as_current_observation so that the
+    # active OTel span is already set when the handler builds its child spans —
+    # this is what makes node/LLM observations appear nested under the root trace.
+    lf_client: Any = getattr(request.app.state, "langfuse", None)
 
     start = time.perf_counter()
-    result = await request.app.state.agent.ainvoke(cast(AgentState, state), config=invoke_config)
-    duration = time.perf_counter() - start
+    result: dict[str, Any] = {}
 
+    if lf_client is not None:
+        with lf_client.start_as_current_observation(
+            name=_LANGFUSE_TRACE_NAME,
+            as_type="span",
+            input={"user_message": body.input},
+        ) as root_obs:
+            with contextlib.suppress(Exception):
+                lf_client.update_current_trace(
+                    name=_LANGFUSE_TRACE_NAME,
+                    user_id=body.user_id,
+                    session_id=thread_id,
+                    tags=[settings.environment, settings.llm_provider],
+                    metadata={"thread_id": thread_id, "llm_provider": settings.llm_provider},
+                )
+            # Create CallbackHandler here, after the parent span is active,
+            # so LangGraph node spans are captured as children of root_obs.
+            with contextlib.suppress(Exception):
+                from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
+
+                invoke_config["callbacks"] = [CallbackHandler()]
+
+            result = await request.app.state.agent.ainvoke(
+                cast(AgentState, state), config=invoke_config
+            )
+            with contextlib.suppress(Exception):
+                root_obs.update(output=result.get("final_output"))
+    else:
+        result = await request.app.state.agent.ainvoke(
+            cast(AgentState, state), config=invoke_config
+        )
+
+    duration = time.perf_counter() - start
     agent_run_duration_seconds.observe(duration)
     duration_ms = round(duration * 1000, 2)
 
@@ -101,8 +121,8 @@ async def run_agent(
         thread_id=thread_id,
     )
 
-    if langfuse_handler is not None:
-        background_tasks.add_task(langfuse_handler.langfuse.flush)
+    if lf_client is not None:
+        background_tasks.add_task(lf_client.flush)
 
     background_tasks.add_task(
         _persist_run,
